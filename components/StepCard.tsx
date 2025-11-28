@@ -50,7 +50,7 @@ export function StepCard({
       {/* Timer (if timed step) */}
       {item.timerDuration && (
         <div className="mb-6">
-          <Timer duration={item.timerDuration} />
+          <Timer key={item.id} duration={item.timerDuration} />
         </div>
       )}
 
