@@ -1,65 +1,148 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useState, useCallback } from "react";
+import { CHECKLIST_ITEMS } from "@/lib/checklist-data";
+import { StepCard } from "@/components/StepCard";
+import { ProgressBar } from "@/components/ProgressBar";
+
+export default function Home(): React.ReactElement {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+  const [completedSubsteps, setCompletedSubsteps] = useState<
+    Record<number, Set<string>>
+  >({});
+
+  const currentItem = CHECKLIST_ITEMS[currentIndex];
+  const isFirstStep = currentIndex === 0;
+  const isLastStep = currentIndex === CHECKLIST_ITEMS.length - 1;
+  const isCurrentCompleted = completedSteps.has(currentIndex);
+
+  const goNext = useCallback((): void => {
+    if (!isLastStep) {
+      setCurrentIndex((prev) => prev + 1);
+    }
+  }, [isLastStep]);
+
+  const goPrev = useCallback((): void => {
+    if (!isFirstStep) {
+      setCurrentIndex((prev) => prev - 1);
+    }
+  }, [isFirstStep]);
+
+  const markComplete = useCallback((): void => {
+    setCompletedSteps((prev) => new Set([...prev, currentIndex]));
+    goNext();
+  }, [currentIndex, goNext]);
+
+  const toggleSubstep = useCallback(
+    (substepId: string): void => {
+      setCompletedSubsteps((prev) => {
+        const currentStepSubsteps = new Set(prev[currentIndex] || []);
+        if (currentStepSubsteps.has(substepId)) {
+          currentStepSubsteps.delete(substepId);
+        } else {
+          currentStepSubsteps.add(substepId);
+        }
+        return { ...prev, [currentIndex]: currentStepSubsteps };
+      });
+    },
+    [currentIndex]
+  );
+
+  const resetChecklist = useCallback((): void => {
+    setCurrentIndex(0);
+    setCompletedSteps(new Set());
+    setCompletedSubsteps({});
+  }, []);
+
+  const allDone = completedSteps.size === CHECKLIST_ITEMS.length;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="flex min-h-screen flex-col bg-white dark:bg-neutral-900">
+      {/* Header with progress */}
+      <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/80 px-4 py-3 backdrop-blur-sm dark:border-neutral-800 dark:bg-neutral-900/80">
+        <ProgressBar
+          current={currentIndex}
+          total={CHECKLIST_ITEMS.length}
+          completedCount={completedSteps.size}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+      </header>
+
+      {/* Main content */}
+      <main className="flex-1 px-4 py-6">
+        {allDone ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="mb-4 text-6xl">✓</div>
+            <h1 className="mb-2 text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+              Checklist Complete
+            </h1>
+            <p className="mb-8 text-neutral-600 dark:text-neutral-400">
+              All pre-dive checks completed. Dive safe!
+            </p>
+            <button
+              onClick={resetChecklist}
+              className="rounded-lg bg-neutral-200 px-6 py-3 font-medium text-neutral-700 transition-colors hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-600"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+              Start New Checklist
+            </button>
+          </div>
+        ) : (
+          <StepCard
+            item={currentItem}
+            completedSubsteps={completedSubsteps[currentIndex] || new Set()}
+            onSubstepToggle={toggleSubstep}
+          />
+        )}
       </main>
+
+      {/* Navigation footer */}
+      {!allDone && (
+        <footer className="sticky bottom-0 border-t border-neutral-200 bg-white px-4 py-4 dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="flex gap-3">
+            {/* Previous button */}
+            <button
+              onClick={goPrev}
+              disabled={isFirstStep}
+              className={`
+                flex-1 rounded-lg px-4 py-4 text-base font-medium transition-colors
+                ${
+                  isFirstStep
+                    ? "bg-neutral-100 text-neutral-400 dark:bg-neutral-800 dark:text-neutral-600"
+                    : "bg-neutral-200 text-neutral-700 hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-600"
+                }
+              `}
+            >
+              ← Back
+            </button>
+
+            {/* Complete/Next button */}
+            {isCurrentCompleted ? (
+              <button
+                onClick={goNext}
+                disabled={isLastStep}
+                className="flex-[2] rounded-lg bg-neutral-200 px-4 py-4 text-base font-medium text-neutral-700 transition-colors hover:bg-neutral-300 dark:bg-neutral-700 dark:text-neutral-200 dark:hover:bg-neutral-600"
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                onClick={markComplete}
+                className="flex-[2] rounded-lg bg-red-500 px-4 py-4 text-base font-medium text-white transition-colors hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-500"
+              >
+                {isLastStep ? "Complete Checklist" : "Complete & Next →"}
+              </button>
+            )}
+          </div>
+
+          {/* Reset button (small, bottom) */}
+          <button
+            onClick={resetChecklist}
+            className="mt-3 w-full py-2 text-sm text-neutral-500 hover:text-neutral-700 dark:text-neutral-500 dark:hover:text-neutral-300"
+          >
+            Reset Checklist
+          </button>
+        </footer>
+      )}
     </div>
   );
 }
