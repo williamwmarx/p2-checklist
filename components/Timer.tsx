@@ -2,6 +2,38 @@
 
 import { useState, useEffect, useCallback } from "react";
 
+function playChime(): void {
+  try {
+    const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+
+    const playTone = (frequency: number, startTime: number, duration: number) => {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.value = frequency;
+      oscillator.type = "sine";
+
+      // Fade in quickly, fade out smoothly
+      gainNode.gain.setValueAtTime(0, startTime);
+      gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+      oscillator.start(startTime);
+      oscillator.stop(startTime + duration);
+    };
+
+    const now = audioContext.currentTime;
+    // Two-tone chime: E5 then G5
+    playTone(659.25, now, 0.3);        // E5
+    playTone(783.99, now + 0.15, 0.4); // G5
+  } catch {
+    // Audio not supported, fail silently
+  }
+}
+
 interface TimerProps {
   duration: number;
   onComplete?: () => void;
@@ -37,6 +69,8 @@ export function Timer({ duration, onComplete }: TimerProps): React.ReactElement 
         if (prev <= 1) {
           setIsRunning(false);
           setIsComplete(true);
+          // Audio chime on completion
+          playChime();
           // Vibrate on completion (if supported)
           if (navigator.vibrate) {
             navigator.vibrate([200, 100, 200, 100, 200]);
