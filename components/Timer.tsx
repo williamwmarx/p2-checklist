@@ -2,36 +2,60 @@
 
 import { useState, useEffect, useCallback } from "react";
 
-function playChime(): void {
-  try {
-    const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+// Shared AudioContext - reused across all chimes to avoid memory leaks
+// and to maintain resumed state from user gesture
+let audioContext: AudioContext | null = null;
 
-    const playTone = (frequency: number, startTime: number, duration: number) => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      oscillator.frequency.value = frequency;
-      oscillator.type = "sine";
-
-      // Fade in quickly, fade out smoothly
-      gainNode.gain.setValueAtTime(0, startTime);
-      gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-
-      oscillator.start(startTime);
-      oscillator.stop(startTime + duration);
-    };
-
-    const now = audioContext.currentTime;
-    // Two-tone chime: E5 then G5
-    playTone(659.25, now, 0.3);        // E5
-    playTone(783.99, now + 0.15, 0.4); // G5
-  } catch {
-    // Audio not supported, fail silently
+function getAudioContext(): AudioContext | null {
+  if (!audioContext || audioContext.state === "closed") {
+    try {
+      const AudioContextClass = window.AudioContext ||
+        (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (AudioContextClass) {
+        audioContext = new AudioContextClass();
+      }
+    } catch {
+      return null;
+    }
   }
+  return audioContext;
+}
+
+// Must be called from a user gesture (e.g., button click) to enable audio on iOS
+function initAudioContext(): void {
+  const ctx = getAudioContext();
+  if (ctx?.state === "suspended") {
+    ctx.resume();
+  }
+}
+
+function playChime(): void {
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state !== "running") return;
+
+  const playTone = (frequency: number, startTime: number, duration: number) => {
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+
+    oscillator.frequency.value = frequency;
+    oscillator.type = "sine";
+
+    // Fade in quickly, fade out smoothly
+    gainNode.gain.setValueAtTime(0, startTime);
+    gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration);
+  };
+
+  const now = ctx.currentTime;
+  // Two-tone chime: E5 then G5
+  playTone(659.25, now, 0.3);        // E5
+  playTone(783.99, now + 0.15, 0.4); // G5
 }
 
 interface TimerProps {
@@ -51,6 +75,8 @@ export function Timer({ duration, onComplete }: TimerProps): React.ReactElement 
   }, [duration]);
 
   const start = useCallback((): void => {
+    // Initialize audio context on user gesture (required for iOS Safari)
+    initAudioContext();
     if (isComplete) {
       reset();
     }
